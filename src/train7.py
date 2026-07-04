@@ -90,6 +90,7 @@ def generate_data(num_samples=64000):
         target_elevation = random.uniform(0, 90)
         object_type = random.randint(0, 3)
 
+        # TODO: trying to update to case
         if object_type == 0:
             frequency = random.uniform(8.0, 8.5)
             bandwidth = random.uniform(0.1, 0.5)
