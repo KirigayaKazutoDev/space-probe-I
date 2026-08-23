@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Voyager 3 // Flight Operations</title>
+  <link rel="stylesheet" href="lcars-1.0.0-beta/lcars-1.0.0-beta/css/lcars.css">
+  <link rel="stylesheet" href="voyager-console.css?v=2">
+</head>
+<body>
+  <main class="lcars-app-container voyager-shell">
+    <header class="voyager-header">
+      <div class="header-elbow"></div>
+      <div class="header-bar"><span>VOYAGER 3</span><strong>FLIGHT OPERATIONS // SOL 160.5 AE</strong></div>
+      <div class="header-cap"></div>
+    </header>
+
+    <section class="command-strip" aria-label="System navigation">
+      <div class="side-rail"><span class="rail-index">V3</span><span class="rail-label">DEEP SPACE<br>NETWORK</span></div>
+      <nav class="rail-actions" aria-label="Station views">
+        <button class="lcars-element button lcars-orange-peel-bg" data-view="overview">OVERVIEW</button>
+        <button class="lcars-element button lcars-anakiwa-bg" data-view="pointing">POINTING</button>
+        <button class="lcars-element button lcars-lilac-bg" data-view="payload">PAYLOAD</button>
+        <button class="lcars-element button lcars-red-alert-bg" data-view="alerts">ALERT LOG</button>
+      </nav>
+      <div class="mission-clock"><span>UTC</span><strong id="clock">--:--:--</strong><small>LINK WINDOW OPEN</small></div>
+    </section>
+
+    <section id="overview" class="screen-view active-view">
+      <div class="screen-heading"><div><span class="eyebrow">MISSION CONTROL / TELEMETRY</span><h1>Autonomous probe status</h1></div><div class="online-state"><i></i> ALL SYSTEMS NOMINAL</div></div>
+      <div class="dashboard-grid">
+        <article class="telemetry-panel hero-panel">
+          <div class="panel-heading"><h2>EARTH LOCK</h2><span class="panel-code">ANT-01</span></div>
+          <div class="orbit-display"><div class="orbit-ring ring-one"></div><div class="orbit-ring ring-two"></div><div class="earth-node"></div><div class="probe-node"></div><div class="orbit-line"></div><span class="orbit-caption earth-caption">EARTH / DSN</span><span class="orbit-caption probe-caption">V3</span></div>
+          <div class="readout-row"><div><span>AZIMUTH</span><strong id="azimuth">300.0000°</strong></div><div><span>ELEVATION</span><strong id="elevation">45.0000°</strong></div><div><span>TRACK ERROR</span><strong class="good" id="track-error">0.0312°</strong></div></div>
+        </article>
+        <article class="telemetry-panel link-panel">
+          <div class="panel-heading"><h2>DSN DOWNLINK</h2><span class="signal-bars" aria-label="Signal strength"><b></b><b></b><b></b><b></b><b></b></span></div>
+          <div class="metric-big"><strong id="link-quality">98.4</strong><span>%<br>LINK QUALITY</span></div>
+          <div class="meter"><span id="link-meter"></span></div>
+          <dl class="data-list"><div><dt>VELOCITY</dt><dd>45.2 km/s</dd></div><div><dt>DISTANCE</dt><dd>160.5 AE</dd></div><div><dt>LATENCY</dt><dd>08m 19s</dd></div></dl>
+        </article>
+        <article class="telemetry-panel storage-panel">
+          <div class="panel-heading"><h2>MRAM STORAGE</h2><span id="storage-state" class="status-chip">SLOT OPEN</span></div>
+          <div class="storage-number"><strong id="storage-used">0.0</strong><span>/ 50.0 GB</span></div>
+          <div class="meter storage-meter"><span id="storage-meter"></span></div>
+          <div class="storage-footer"><span>LOW-RES QUEUE <strong id="queue-count">0</strong></span><span>HIGH-RES BUFFER <strong id="buffer-state">EMPTY</strong></span></div>
+        </article>
+        <article class="telemetry-panel ai-panel">
+          <div class="panel-heading"><h2>DISHNET INFERENCE</h2><span id="scanner-state" class="status-chip active">ACTIVE</span></div>
+          <div class="scan-visual"><div class="scan-sweep"></div><span>SNR <strong id="snr">10.82</strong> dB</span></div>
+          <p id="scan-message">Mustererkennung bereit. Warte auf SNR-Peak.</p>
+          <button class="lcars-element button lcars-anakiwa-bg wide-command" data-command="scan_toggle">TOGGLE AI SCANNER</button>
+        </article>
+      </div>
+    </section>
+
+    <section id="pointing" class="screen-view">
+      <div class="screen-heading"><div><span class="eyebrow">NAVIGATION / AUTONOMOUS CONTROL</span><h1>Antenna pointing</h1></div></div>
+      <div class="detail-grid"><article class="telemetry-panel detail-card"><div class="panel-heading"><h2>TRACKING SOLUTION</h2><span class="panel-code">DISHNET / 17 INPUT</span></div><div class="big-coordinate"><span>CURRENT AZIMUTH</span><strong id="pointing-az">300.0000°</strong><small>TARGET EARTH: 300.0000°</small></div><div class="meter"><span style="width:99.6%"></span></div><p class="muted">Continuous inference loop compensating for interstellar plasma drift. Servo update cadence: 2.0 s.</p></article><article class="telemetry-panel detail-card"><div class="panel-heading"><h2>ORIENTATION VECTOR</h2></div><div class="vector-grid"><span>AZ</span><strong>300.0000°</strong><span>EL</span><strong>45.0000°</strong><span>DRIFT</span><strong class="good">+0.0001°</strong><span>MODE</span><strong>AUTO-TRACK</strong></div></article></div>
+    </section>
+
+    <section id="payload" class="screen-view"><div class="screen-heading"><div><span class="eyebrow">DATA SYSTEMS / HANDSHAKE PROTOCOL</span><h1>Payload management</h1></div></div><div class="detail-grid"><article class="telemetry-panel detail-card"><div class="panel-heading"><h2>BUFFER CONTROL</h2><span id="payload-chip" class="status-chip">READY</span></div><p class="payload-copy">4K capture packages are held until the Earth station confirms receipt. Low-resolution observations continue in the queue while the high-resolution slot is locked.</p><button class="lcars-element button lcars-orange-peel-bg wide-command" data-command="ack_delete">ACK DELETE / RELEASE SLOT</button></article><article class="telemetry-panel detail-card"><div class="panel-heading"><h2>RECEIVED PACKAGES</h2></div><div id="package-list" class="package-list"><div class="empty-state">NO PACKAGES RECEIVED THIS SESSION</div></div></article></div></section>
+
+    <section id="alerts" class="screen-view"><div class="screen-heading"><div><span class="eyebrow">COMMS / EVENT STREAM</span><h1>Alert log</h1></div><button class="lcars-element button lcars-gray-bg" id="clear-log">CLEAR LOCAL LOG</button></div><div class="log-window" id="log-window" aria-live="polite"></div></section>
+
+    <footer class="voyager-footer"><div class="footer-block"></div><div class="footer-line"><span>V3-CORE</span><span>AI-SCAN</span><span>ANT-01</span><span>MRAM-50</span></div><div class="footer-cap"></div></footer>
+  </main>
+  <div id="audDummy" hidden></div>
+  <script src="lcars-1.0.0-beta/lcars-1.0.0-beta/js/lcars_audio.js?v=3"></script>
+  <script src="voyager-console.js"></script>
+</body>
+</html>
