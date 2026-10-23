@@ -35,3 +35,9 @@ python -c "import csv; f=open('train_feature_origins.csv', encoding='utf-8-sig',
 ```
 
 Wenn target_azimuth_deg = None erscheint, stimmt möglicherweise der Spaltenname nicht exakt. Wenn target_azimuth_deg = '' und augmentation_id = 'original' erscheinen, ist das Ergebnis wie erwartet.
+
+## Calculate Azimuth
+Führe dann diesen Befehl aus:
+```plain
+python derive_azimuth_labels.py observations.csv -o observations_with_azimuth.csv --ra-unit hours --time-point midpoint
+```
