@@ -1,0 +1,145 @@
+        aug = train.copy(deep=True)
+        for col in CONTINUOUS_COLUMNS:
+            sigma = scales[col] * jitter_fraction
+            if sigma <= 0:
+                continue
+            aug[col] = pd.to_numeric(aug[col], errors="raise").to_numpy(dtype=float) + rng.normal(0.0, sigma, len(aug))
+        # Azimuth is circular, elevation bounded by horizon/zenith.
+        aug["azimuth_deg"] = np.mod(aug["azimuth_deg"].to_numpy(dtype=float), 360.0)
+        aug["elevation_deg"] = np.clip(aug["elevation_deg"].to_numpy(dtype=float), 0.0, 90.0)
+        # Domain bounds from train7.py normalization. Frequency/bandwidth units are input-defined.
+        for col, (lo, hi) in SCALE.items():
+            if col in aug:
+                aug[col] = np.clip(aug[col].to_numpy(dtype=float), lo, hi)
+        # These are deterministic/time-derived metadata and should not be independently jittered.
+        for col in ("day_of_year", "hour_of_day", "local_hour_angle", "mars_angle", "sun_earth_angle", "sun_mars_angle"):
+            aug[col] = train[col].to_numpy(copy=True)
+        aug["visibility"] = train["visibility"].to_numpy(copy=True)
+        aug["augmentation_id"] = f"aug_{aug_idx + 1}"
+        generated.append(aug)
+    base = generated[0].copy()
+    if "augmentation_id" not in base.columns:
+        base["augmentation_id"] = "original"
+    out = pd.concat(generated, ignore_index=True)
+    out["augmentation_id"] = out["augmentation_id"].fillna("original")
+    return out
+
+
+def normalize_features(df: pd.DataFrame) -> np.ndarray:
+    out = df[FEATURE_COLUMNS].astype(float).copy()
+    out["azimuth_deg"] /= 360.0
+    out["elevation_deg"] /= 90.0
+    out["frequency"] /= 20.0
+    out["bandwidth"] /= 5.0
+    out["snr"] /= 20.0
+    out["doppler"] = (out["doppler"] + 1000.0) / 2000.0
+    out["polarization"] = (out["polarization"] + 1.0) / 2.0
+    out["pulse_period"] /= 4.0
+    out["noise_level"] /= 10.0
+    # signal_type and seven planet/date features are already represented as in train7.py.
+    return out.to_numpy(dtype=np.float32)
+
+
+def prepare_partition(df: pd.DataFrame, split_name: str, augment_factor: int,
+                      jitter_fraction: float, rng: np.random.Generator) -> pd.DataFrame:
+    # Augment only train. Validation and test are original observations only.
+    part = jitter_training_rows(df, augment_factor, jitter_fraction, rng) if split_name == "train" else df.copy()
+    if "augmentation_id" not in part:
+        part["augmentation_id"] = "original"
+    target = part["target_azimuth_deg"].to_numpy(dtype=float)
+    if np.any((target < 0) | (target > 360)):
+        raise ValueError("target_azimuth_deg must be in [0, 360].")
+    # Exact class mapping used in train7.py; 360° wraps to class 0.
+    part["y_class"] = np.rint(target * 32.0).astype(np.int64) % NUM_POSITIONS
+    part["y_reg"] = target / 360.0
+    part["split"] = split_name
+    return part
+
+
+def save_partition(df: pd.DataFrame, out_dir: Path, split_name: str) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    # CSV carries normalized model inputs, targets and provenance columns.
+    X = normalize_features(df)
+    csv_out = pd.DataFrame(X, columns=[f"x{i}" for i in range(17)])
+    csv_out["y_class"] = df["y_class"].to_numpy(dtype=np.int64)
+    csv_out["y_reg"] = df["y_reg"].to_numpy(dtype=np.float32)
+    csv_out["source_id"] = df["source_id"].astype(str).to_numpy()
+    csv_out["augmentation_id"] = df["augmentation_id"].astype(str).to_numpy()
+    csv_out.to_csv(out_dir / f"{split_name}.csv", index=False)
+    np.savez_compressed(
+        out_dir / f"{split_name}.npz",
+        X=X,
+        y=df["y_class"].to_numpy(dtype=np.int64),
+        y_reg=df["y_reg"].to_numpy(dtype=np.float32),
+        source_id=df["source_id"].astype(str).to_numpy(dtype=str),
+        augmentation_id=df["augmentation_id"].astype(str).to_numpy(dtype=str),
+        feature_names=np.asarray(FEATURE_COLUMNS, dtype=str),
+    )
+
+
+def main() -> None:
+    args = parse_args()
+    if not args.input_csv.exists():
+        raise FileNotFoundError(args.input_csv)
+    df = pd.read_csv(args.input_csv)
+    required = set(FEATURE_COLUMNS + ["target_azimuth_deg", "source_id"])
+    missing = sorted(required - set(df.columns))
+    if missing:
+        raise ValueError("Input CSV missing required columns: " + ", ".join(missing))
+    if df.empty:
+        raise ValueError("Input CSV contains no rows.")
+    if df["source_id"].isna().any() or df["target_azimuth_deg"].isna().any():
+        raise ValueError("source_id and target_azimuth_deg may not be missing.")
+    df["source_id"] = df["source_id"].astype(str)
+    for col in FEATURE_COLUMNS + ["target_azimuth_deg"]:
+        df[col] = pd.to_numeric(df[col], errors="raise")
+    if not np.isfinite(df[FEATURE_COLUMNS + ["target_azimuth_deg"]].to_numpy(dtype=float)).all():
+        raise ValueError("Feature and target columns must contain finite numeric values (no NaN/inf).")
+    if ((df["azimuth_deg"] - df["target_azimuth_deg"]).abs() < 1e-9).mean() > 0.95:
+        msg = ("More than 95% of azimuth_deg inputs equal target_azimuth_deg. This is target leakage: "
+               "the model can read its answer from its input. Use measured/input azimuth instead, or explicitly pass --allow-target-leakage.")
+        if not args.allow_target_leakage:
+            raise ValueError(msg)
+        warnings.warn(msg, RuntimeWarning)
+    if df["signal_type"].nunique() > 2:
+        warnings.warn("train7.py's normalization treats signal_type as a scalar; verify its encoding is meaningful.")
+    # Reject malformed obvious domains rather than silently fabricating corrections.
+    if ((df["azimuth_deg"] < 0) | (df["azimuth_deg"] > 360)).any():
+        raise ValueError("azimuth_deg must be in [0, 360].")
+    if ((df["elevation_deg"] < 0) | (df["elevation_deg"] > 90)).any():
+        raise ValueError("elevation_deg must be in [0, 90].")
+    if not df["visibility"].isin([0, 1]).all():
+        raise ValueError("visibility must be 0 or 1.")
+
+    rng = np.random.default_rng(args.seed)
+    parts = group_split(df, args.test_fraction, args.validation_fraction, rng)
+    # Check disjoint parent groups before augmentation.
+    ids = {k: set(v["source_id"]) for k, v in parts.items()}
+    if ids["train"] & ids["validation"] or ids["train"] & ids["test"] or ids["validation"] & ids["test"]:
+        raise RuntimeError("Internal error: source groups overlap across splits.")
+    args.output_dir.mkdir(parents=True, exist_ok=True)
+    summary = {"seed": args.seed, "test_fraction": args.test_fraction,
+               "validation_fraction": args.validation_fraction, "augment_factor": args.augment_factor,
+               "jitter_fraction_of_training_IQR": args.jitter_fraction,
+               "split_source_groups": {k: len(v) for k, v in ids.items()},
+               "split_original_rows": {k: int(len(v)) for k, v in parts.items()},
+               "feature_columns_raw": FEATURE_COLUMNS,
+               "normalization_matches_train7": True,
+               "augmentation_applied_to": ["train only"],
+               "note": "Feature-level augmentation; no raw spectrogram signal injection performed."}
+    for name in ("train", "validation", "test"):
+        if parts[name].empty:
+            if name == "validation" and args.validation_fraction == 0:
+                continue
+            raise ValueError(f"Split '{name}' is empty; use more source_id groups or adjust split fractions.")
+        processed = prepare_partition(parts[name], name, args.augment_factor,
+                                      args.jitter_fraction, rng)
+        save_partition(processed, args.output_dir, name)
+        summary.setdefault("final_rows", {})[name] = int(len(processed))
+    (args.output_dir / "dataset_manifest.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(json.dumps(summary, indent=2))
+    print(f"\nWrote CSV/NPZ partitions to: {args.output_dir.resolve()}")
+
+
+if __name__ == "__main__":
+    main()
