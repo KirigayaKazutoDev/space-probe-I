@@ -12,7 +12,7 @@ python json_gz_to_csv.py atlas_hits_2025_11.json.gz -o observations.csv
 ```
 
 ## Generating synthetic data
-Then you have to execute this command (do not forget to fill the observations.csv file!):
+Then you have to execute either this command (do not forget to fill the observations.csv file!):
 ```plain
 python synthetic_data_generator.py observations.csv \
   --output-dir dataset_out \
@@ -21,4 +21,8 @@ python synthetic_data_generator.py observations.csv \
   --augment-factor 3 \
   --jitter-fraction 0.02 \
   --seed 42
+```
+or this one as a one-liner-command:
+```plain
+python synthetic_data_generator.py observations.csv --output-dir dataset_out --test-fraction 0.15 --validation-fraction 0.15 --augment-factor 3 --jitter-fraction 0.02 --seed 42
 ```
