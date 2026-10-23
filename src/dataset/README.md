@@ -3,6 +3,14 @@
 ## Data Collecting
 to generate the synthetic data out of the existing data, you first have to fill your observations.csv file with data. This could be done by scraping content from existing CSV tables.
 
+This index has the atlas_hits_2025_11.json.gz file and other even bigger files: https://bldata.berkeley.edu/ATLAS/MeerKAT/
+
+## Data Conversion
+to convert the downloaded atlas_hits_2025_11.json.gz from json/json.gz to csv, you have to execute this command:
+```plain
+python json_gz_to_csv.py atlas_hits_2025_11.json.gz -o observations.csv
+```
+
 ## Generating synthetic data
 Then you have to execute this command (do not forget to fill the observations.csv file!):
 ```plain
